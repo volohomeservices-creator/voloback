@@ -1,0 +1,8 @@
+-- We bypass Supabase Auth (using Firebase instead).
+-- auth.uid() always returns NULL in our setup.
+-- Therefore RLS is enforced at the API layer via the
+-- Service Role client + session cookie verification.
+-- All tables have RLS enabled (from Phase 1 migration 013).
+-- We add no additional policies because the supabaseAdmin
+-- (SERVICE_ROLE_KEY) client bypasses all RLS automatically.
+-- This is our intended design.
