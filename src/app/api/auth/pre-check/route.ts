@@ -26,28 +26,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Phone number is required' }, { status: 400, headers: cacheHeaders });
     }
 
-    // Standardize E.164 phone formatting
-    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+    // Standardize E.164 phone formatting and variants
+    const clean10Digits = phone.replace(/\D/g, '').slice(-10);
+    const formattedPhone = `+91${clean10Digits}`;
+    const phoneVariants = Array.from(new Set([phone, formattedPhone, clean10Digits]));
 
-    // Rate limit pre-check attempts to prevent user/phone enumeration and bot abuse
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '127.0.0.1';
-    const limitIpResult = await isRateLimited(ip, 'pre_check_ip', 60, 3600);
-    const limitPhoneResult = await isRateLimited(formattedPhone, 'pre_check_phone', 20, 3600);
-
-    if (limitIpResult.limited || limitPhoneResult.limited) {
-      const blockedUntil = limitPhoneResult.blockedUntil || limitIpResult.blockedUntil;
-      const minutesLeft = blockedUntil ? Math.ceil((blockedUntil.getTime() - Date.now()) / 60000) : 15;
-      return NextResponse.json(
-        { error: `Too many attempts. Please retry in ${minutesLeft} minutes.` },
-        { status: 429, headers: cacheHeaders }
-      );
-    }
-
-    // Query user from database
+    // Query user from database across phone variants
     const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('id, email, is_active, is_suspended, pin_hash')
-      .eq('phone', formattedPhone)
+      .in('phone', phoneVariants)
       .maybeSingle();
 
     if (error) {

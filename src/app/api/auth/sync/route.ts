@@ -47,8 +47,7 @@ export async function POST(request: Request) {
     let is_active = true;
 
     if (fetchErr && fetchErr.code === 'PGRST116') {
-      // User does not exist, insert user
-      isNewUser = true;
+      // User does not exist under this firebase_uid, attempt to insert
       const { data: newUser, error: insertErr } = await supabaseAdmin
         .from('users')
         .insert({
@@ -61,11 +60,32 @@ export async function POST(request: Request) {
         .single();
 
       if (insertErr || !newUser) {
-        return NextResponse.json({ error: 'Failed to create user record' }, { status: 500 });
-      }
+        console.error('[/api/auth/sync] Failed to insert new user record:', insertErr);
+        // Fallback: look up user by phone number if phone number already exists
+        const { data: userByPhone } = await supabaseAdmin
+          .from('users')
+          .select('*')
+          .eq('phone', phone)
+          .maybeSingle();
 
-      user_id = newUser.id;
-      is_active = newUser.is_active;
+        if (userByPhone) {
+          user_id = userByPhone.id;
+          is_active = userByPhone.is_active;
+          current_full_name = userByPhone.full_name || '';
+          isNewUser = false;
+          // Update firebase_uid on the existing user record
+          await supabaseAdmin
+            .from('users')
+            .update({ firebase_uid })
+            .eq('id', user_id);
+        } else {
+          return NextResponse.json({ error: 'Failed to create user record', details: insertErr?.message }, { status: 500 });
+        }
+      } else {
+        isNewUser = true;
+        user_id = newUser.id;
+        is_active = newUser.is_active;
+      }
 
       // If worker, insert workers table + commission wallet
       if (role === 'worker') {
@@ -77,8 +97,9 @@ export async function POST(request: Request) {
             kyc_status: 'PENDING'
           });
 
-        if (workerErr) {
-          return NextResponse.json({ error: 'Failed to initialize worker profile' }, { status: 500 });
+        if (workerErr && workerErr.code !== '23505') {
+          console.error('[/api/auth/sync] Failed to initialize worker profile:', workerErr);
+          return NextResponse.json({ error: 'Failed to initialize worker profile', details: workerErr.message }, { status: 500 });
         }
       }
 
@@ -187,8 +208,8 @@ export async function POST(request: Request) {
 
     response.headers.set('Set-Cookie', serializedCookie);
     return response;
-  } catch (error) {
-    console.error('Error in sync api route:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('[/api/auth/sync] Error in sync api route:', error);
+    return NextResponse.json({ error: 'Internal server error', details: error?.message || String(error) }, { status: 500 });
   }
 }

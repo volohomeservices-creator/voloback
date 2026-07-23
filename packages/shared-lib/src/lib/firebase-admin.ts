@@ -34,8 +34,35 @@ if (!getApps().length) {
   }
 }
 
-export const adminAuth = getAuth();
-export const adminMessaging = getMessaging();
+export const getAdminAuth = () => {
+  if (!getApps().length) {
+    throw new Error('Firebase Admin app is not initialized. Check FIREBASE_ADMIN_* env vars.');
+  }
+  return getAuth();
+};
+
+export const getAdminMessaging = () => {
+  if (!getApps().length) {
+    throw new Error('Firebase Admin app is not initialized. Check FIREBASE_ADMIN_* env vars.');
+  }
+  return getMessaging();
+};
+
+export const adminAuth = new Proxy({} as ReturnType<typeof getAuth>, {
+  get(_target, prop) {
+    const auth = getAdminAuth();
+    const val = (auth as any)[prop];
+    return typeof val === 'function' ? val.bind(auth) : val;
+  }
+});
+
+export const adminMessaging = new Proxy({} as ReturnType<typeof getMessaging>, {
+  get(_target, prop) {
+    const messaging = getAdminMessaging();
+    const val = (messaging as any)[prop];
+    return typeof val === 'function' ? val.bind(messaging) : val;
+  }
+});
 
 export async function verifyFirebaseToken(idToken: string) {
   try {
@@ -45,6 +72,7 @@ export async function verifyFirebaseToken(idToken: string) {
       phone_number: decodedToken.phone_number || '',
     };
   } catch (error) {
+    console.error('[Firebase Admin] Token verification failed:', error);
     throw new Error('FIREBASE_TOKEN_INVALID');
   }
 }
