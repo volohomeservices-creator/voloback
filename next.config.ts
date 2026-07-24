@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     loader: "custom",
-    loaderFile: "../../packages/shared-lib/src/lib/image-loader.ts",
+    loaderFile: "./packages/shared-lib/src/lib/image-loader.ts",
   },
 };
 
