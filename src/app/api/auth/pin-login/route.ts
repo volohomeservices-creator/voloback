@@ -41,11 +41,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Query user
+    const clean10Digits = phone.replace(/\D/g, '').slice(-10);
+    const formattedPhone = `+91${clean10Digits}`;
+    const phoneVariants = Array.from(new Set([phone, formattedPhone, clean10Digits]));
+
+    // 2. Query user across phone variants
     const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('*')
-      .eq('phone', formattedPhone)
+      .in('phone', phoneVariants)
       .maybeSingle();
 
     if (error || !user) {
