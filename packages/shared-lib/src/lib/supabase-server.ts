@@ -26,6 +26,4 @@ export const supabaseAdmin: any =
     },
   });
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForSupabase.supabaseAdmin = supabaseAdmin;
-}
+globalForSupabase.supabaseAdmin = supabaseAdmin;

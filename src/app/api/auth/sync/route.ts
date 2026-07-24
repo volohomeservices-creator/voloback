@@ -61,11 +61,15 @@ export async function POST(request: Request) {
 
       if (insertErr || !newUser) {
         console.error('[/api/auth/sync] Failed to insert new user record:', insertErr);
-        // Fallback: look up user by phone number if phone number already exists
+        const clean10Digits = phone.replace(/\D/g, '').slice(-10);
+        const formattedPhone = `+91${clean10Digits}`;
+        const phoneVariants = Array.from(new Set([phone, formattedPhone, clean10Digits]));
+
+        // Fallback: look up user by phone number across phone variants
         const { data: userByPhone } = await supabaseAdmin
           .from('users')
           .select('*')
-          .eq('phone', phone)
+          .in('phone', phoneVariants)
           .maybeSingle();
 
         if (userByPhone) {
